@@ -80,6 +80,9 @@ class BunnyOverlay(QtWidgets.QWidget):
         )
         self.label.setPixmap(self.base_pixmap)
         self.pixmap_cache = {}
+        # overlay offset from cursor
+        self.offset_x = 30
+        self.offset_y = 0
 
         # Mouse tracking state
         start_pos = QtGui.QCursor.pos()
@@ -103,19 +106,21 @@ class BunnyOverlay(QtWidgets.QWidget):
 
     def update_position(self):
         mouse_pos = QtGui.QCursor.pos()
+        target_x = mouse_pos.x() + self.offset_x
+        target_y = mouse_pos.y() + self.offset_y
 
         # Smooth toward cursor
         smoothing = 0.15
-        self.current_x += (mouse_pos.x() - self.current_x) * smoothing
-        self.current_y += (mouse_pos.y() - self.current_y) * smoothing
+        self.current_x += (target_x - self.current_x) * smoothing
+        self.current_y += (target_y - self.current_y) * smoothing
 
-        dx_lim = mouse_pos.x() - self.current_x
-        dy_lim = mouse_pos.y() - self.current_y
+        dx_lim = self.current_x - mouse_pos.x()
+        dy_lim = self.current_y - mouse_pos.y()
         dist = math.hypot(dx_lim, dy_lim)
         if dist > 50:
             factor = 50.0 / dist
-            self.current_x = mouse_pos.x() - dx_lim * factor
-            self.current_y = mouse_pos.y() - dy_lim * factor
+            self.current_x = mouse_pos.x() + dx_lim * factor
+            self.current_y = mouse_pos.y() + dy_lim * factor
 
         # Rotation based on smoothed horizontal movement
         dx = mouse_pos.x() - self.current_x
