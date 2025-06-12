@@ -1,5 +1,4 @@
 import sys
-import pyautogui
 import time
 import math
 import random
@@ -11,11 +10,14 @@ class Sparkle(QtWidgets.QLabel):
         super().__init__(parent)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-        self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.Tool)
+        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
 
-        pixmap = QtGui.QPixmap("stars.png").scaled(40, 40, QtCore.Qt.KeepAspectRatio,
-                                                     QtCore.Qt.SmoothTransformation)
-        self.setPixmap(pixmap)
+        if not hasattr(Sparkle, "_pixmap"):
+            Sparkle._pixmap = QtGui.QPixmap("stars.png").scaled(
+                40, 40, QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation
+            )
+        self.setPixmap(Sparkle._pixmap)
         self.move(x, y)
         self.opacity = 1.0
 
@@ -77,11 +79,12 @@ class BunnyOverlay(QtWidgets.QWidget):
             90, 90, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
         )
         self.label.setPixmap(self.base_pixmap)
+        self.pixmap_cache = {}
 
         # Mouse tracking state
-        start_pos = pyautogui.position()
-        self.current_x = start_pos.x
-        self.current_y = start_pos.y
+        start_pos = QtGui.QCursor.pos()
+        self.current_x = start_pos.x()
+        self.current_y = start_pos.y()
         self.current_angle = 0
 
         self.trail_timer = QtCore.QTimer()
@@ -93,28 +96,41 @@ class BunnyOverlay(QtWidgets.QWidget):
         self.timer.start(10)
 
     def spawn_trail(self):
-        x = self.x() + random.randint(20, 60)
-        y = self.y() + random.randint(20, 60)
+        cursor = QtGui.QCursor.pos()
+        x = cursor.x() + random.randint(-50, 50)
+        y = cursor.y() + random.randint(-50, 50)
         self.sparkle_layer.add_sparkle(x, y)
 
     def update_position(self):
-        mouse_pos = pyautogui.position()
+        mouse_pos = QtGui.QCursor.pos()
 
         # Smooth toward cursor
         smoothing = 0.15
-        self.current_x += (mouse_pos.x - self.current_x) * smoothing
-        self.current_y += (mouse_pos.y - self.current_y) * smoothing
+        self.current_x += (mouse_pos.x() - self.current_x) * smoothing
+        self.current_y += (mouse_pos.y() - self.current_y) * smoothing
+
+        dx_lim = mouse_pos.x() - self.current_x
+        dy_lim = mouse_pos.y() - self.current_y
+        dist = math.hypot(dx_lim, dy_lim)
+        if dist > 50:
+            factor = 50.0 / dist
+            self.current_x = mouse_pos.x() - dx_lim * factor
+            self.current_y = mouse_pos.y() - dy_lim * factor
 
         # Rotation based on smoothed horizontal movement
-        dx = mouse_pos.x - self.current_x
+        dx = mouse_pos.x() - self.current_x
         target_angle = max(min(dx * 2, 15), -15)
         self.current_angle += (target_angle - self.current_angle) * 0.2
 
         # Rotate and draw bunny into fixed-size canvas
-        rotated_pixmap = self.base_pixmap.transformed(
-            QtGui.QTransform().rotate(self.current_angle),
-            QtCore.Qt.SmoothTransformation
-        )
+        angle_key = int(round(self.current_angle))
+        rotated_pixmap = self.pixmap_cache.get(angle_key)
+        if rotated_pixmap is None:
+            rotated_pixmap = self.base_pixmap.transformed(
+                QtGui.QTransform().rotate(angle_key),
+                QtCore.Qt.SmoothTransformation
+            )
+            self.pixmap_cache[angle_key] = rotated_pixmap
 
         canvas = QtGui.QPixmap(90, 90)
         canvas.fill(QtCore.Qt.transparent)
@@ -142,5 +158,7 @@ if __name__ == "__main__":
     sparkle_layer = SparkleLayer()
     overlay = BunnyOverlay("hachiware.png", sparkle_layer)
     overlay.show()
+    overlay.raise_()
+    sparkle_layer.lower()
 
     sys.exit(app.exec())
