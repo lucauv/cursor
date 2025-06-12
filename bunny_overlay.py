@@ -58,6 +58,7 @@ class SparkleLayer(QtWidgets.QWidget):
     def add_sparkle(self, x, y):
         sparkle = Sparkle(x, y, parent=self)
         sparkle.show()
+
 class BunnyOverlay(QtWidgets.QWidget):
     def __init__(self, image_path, sparkle_layer):
         super().__init__()
@@ -71,18 +72,18 @@ class BunnyOverlay(QtWidgets.QWidget):
 
         self.label = QtWidgets.QLabel(self)
         self.label.setAlignment(QtCore.Qt.AlignCenter)
-        self.label.setFixedSize(90, 90)
-        self.resize(90, 90)  # Never resize after this
+        self.label.setFixedSize(80, 80)
+        self.resize(80, 80)  # Never resize after this
 
         # Load base image
         self.base_pixmap = QtGui.QPixmap(image_path).scaled(
-            90, 90, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
+            80, 80, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
         )
         self.label.setPixmap(self.base_pixmap)
         self.pixmap_cache = {}
         # overlay offset from cursor
-        self.offset_x = 30
-        self.offset_y = 0
+        self.offset_x = 1000
+        self.offset_y = 700
 
         # Mouse tracking state
         start_pos = QtGui.QCursor.pos()
@@ -137,7 +138,7 @@ class BunnyOverlay(QtWidgets.QWidget):
             )
             self.pixmap_cache[angle_key] = rotated_pixmap
 
-        canvas = QtGui.QPixmap(90, 90)
+        canvas = QtGui.QPixmap(80, 80)
         canvas.fill(QtCore.Qt.transparent)
         painter = QtGui.QPainter(canvas)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
