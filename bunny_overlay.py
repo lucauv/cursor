@@ -62,6 +62,8 @@ class SparkleLayer(QtWidgets.QWidget):
     def add_sparkle(self, x, y):
         sparkle = Sparkle(x, y, parent=self)
         sparkle.show()
+        # Keep sparkles behind the overlay
+        sparkle.lower()
 class BunnyOverlay(QtWidgets.QWidget):
     def __init__(self, image_path, sparkle_layer):
         super().__init__()
