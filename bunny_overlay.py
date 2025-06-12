@@ -5,8 +5,8 @@ import random
 from PySide6 import QtCore, QtGui, QtWidgets
 
 # Overlay offset relative to the cursor
-OFFSET_X = 30
-OFFSET_Y = 0
+OFFSET_X = 60
+OFFSET_Y = 60
 
 
 class Sparkle(QtWidgets.QLabel):
@@ -64,6 +64,7 @@ class SparkleLayer(QtWidgets.QWidget):
         sparkle.show()
         # Keep sparkles behind the overlay
         sparkle.lower()
+
 class BunnyOverlay(QtWidgets.QWidget):
     def __init__(self, image_path, sparkle_layer):
         super().__init__()
@@ -81,9 +82,8 @@ class BunnyOverlay(QtWidgets.QWidget):
         self.resize(80, 80)  # Never resize after this
 
         # Load base image
-        self.base_pixmap = QtGui.QPixmap(image_path).scaled(
-            80, 80, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
-        )
+        self.base_pixmap = QtGui.QPixmap(image_path)
+        assert self.base_pixmap.size() == QtCore.QSize(80, 80)
         self.label.setPixmap(self.base_pixmap)
         self.pixmap_cache = {}
         # overlay offset from cursor
@@ -94,7 +94,7 @@ class BunnyOverlay(QtWidgets.QWidget):
         start_pos = QtGui.QCursor.pos()
         self.current_x = start_pos.x()
         self.current_y = start_pos.y()
-        self.current_angle = 0
+        self.current_angle = 5
 
         self.trail_timer = QtCore.QTimer()
         self.trail_timer.timeout.connect(self.spawn_trail)
@@ -102,7 +102,7 @@ class BunnyOverlay(QtWidgets.QWidget):
 
         # Track previous mouse position for sway effect
         self.prev_mouse_x = self.current_x
-        self.sway_offset = 0
+        self.sway_offset = 70
 
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_position)
@@ -116,55 +116,67 @@ class BunnyOverlay(QtWidgets.QWidget):
 
     def update_position(self):
         mouse_pos = QtGui.QCursor.pos()
-        # Horizontal sway based on mouse delta
+
+        # Track mouse delta
         dx_mouse = mouse_pos.x() - self.prev_mouse_x
         self.prev_mouse_x = mouse_pos.x()
-        self.sway_offset += (dx_mouse - self.sway_offset) * 0.2
-        self.sway_offset = max(min(self.sway_offset, 20), -20)
 
+        # Update sway_offset based on movement
+        self.sway_offset += (dx_mouse * 3 + self.sway_offset) * 0.3  # Faster reaction, more dramatic
+        self.sway_offset = max(min(self.sway_offset, 80), -80)
+
+        # Combine with static offset
         target_x = mouse_pos.x() + self.offset_x + self.sway_offset
         target_y = mouse_pos.y() + self.offset_y
 
-        # Smooth toward cursor
-        smoothing = 0.15
+        # Smooth motion
+        smoothing = 0.4
         self.current_x += (target_x - self.current_x) * smoothing
         self.current_y += (target_y - self.current_y) * smoothing
 
+        # Clamp distance from mouse to avoid going too far
         dx_lim = self.current_x - mouse_pos.x()
         dy_lim = self.current_y - mouse_pos.y()
         dist = math.hypot(dx_lim, dy_lim)
-        if dist > 50:
-            factor = 50.0 / dist
+        if dist > 70:
+            factor = 70.0 / dist
             self.current_x = mouse_pos.x() + dx_lim * factor
             self.current_y = mouse_pos.y() + dy_lim * factor
 
-        # Rotation based on smoothed horizontal movement
-        dx = mouse_pos.x() - self.current_x
-        target_angle = max(min(dx * 2, 15), -15)
+        # Rotation based on smoothed sway
+        target_angle = max(min(self.sway_offset * 0.15, 25), -25)
         self.current_angle += (target_angle - self.current_angle) * 0.2
 
-        # Rotate and draw bunny into fixed-size canvas
+        # Rotate bunny
         angle_key = int(round(self.current_angle))
         rotated_pixmap = self.pixmap_cache.get(angle_key)
         if rotated_pixmap is None:
-            rotated_pixmap = self.base_pixmap.transformed(
+            image = self.base_pixmap.toImage()
+            rotated_image = image.transformed(
                 QtGui.QTransform().rotate(angle_key),
-                QtCore.Qt.SmoothTransformation
+                QtCore.Qt.FastTransformation
             )
+            rotated_pixmap = QtGui.QPixmap.fromImage(rotated_image)
             self.pixmap_cache[angle_key] = rotated_pixmap
 
-        canvas = QtGui.QPixmap(90, 90)
+        # Draw to canvas
+        canvas_size = 120
+        canvas = QtGui.QPixmap(canvas_size, canvas_size)
         canvas.fill(QtCore.Qt.transparent)
+
         painter = QtGui.QPainter(canvas)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform, False)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
         painter.drawPixmap(
-            (canvas.width() - rotated_pixmap.width()) // 2,
-            (canvas.height() - rotated_pixmap.height()) // 2,
+            (canvas_size - rotated_pixmap.width()) // 2,
+            (canvas_size - rotated_pixmap.height()) // 2,
             rotated_pixmap
         )
         painter.end()
 
         self.label.setPixmap(canvas)
+        self.label.setFixedSize(canvas_size, canvas_size)
+        self.resize(canvas_size, canvas_size)
 
         # Gentle vertical bob
         wobble = math.sin(time.time() * 8) * 5
@@ -172,6 +184,7 @@ class BunnyOverlay(QtWidgets.QWidget):
             int(self.current_x - self.width() // 2),
             int(self.current_y - self.height() // 2 + wobble)
         )
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
