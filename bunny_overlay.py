@@ -77,12 +77,12 @@ class BunnyOverlay(QtWidgets.QWidget):
 
         self.label = QtWidgets.QLabel(self)
         self.label.setAlignment(QtCore.Qt.AlignCenter)
-        self.label.setFixedSize(90, 90)
-        self.resize(90, 90)  # Never resize after this
+        self.label.setFixedSize(80, 80)
+        self.resize(80, 80)  # Never resize after this
 
         # Load base image
         self.base_pixmap = QtGui.QPixmap(image_path).scaled(
-            90, 90, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
+            80, 80, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
         )
         self.label.setPixmap(self.base_pixmap)
         self.pixmap_cache = {}
@@ -116,7 +116,6 @@ class BunnyOverlay(QtWidgets.QWidget):
 
     def update_position(self):
         mouse_pos = QtGui.QCursor.pos()
-
         # Horizontal sway based on mouse delta
         dx_mouse = mouse_pos.x() - self.prev_mouse_x
         self.prev_mouse_x = mouse_pos.x()
