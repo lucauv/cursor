@@ -4,6 +4,10 @@ import math
 import random
 from PySide6 import QtCore, QtGui, QtWidgets
 
+# Overlay offset relative to the cursor
+OFFSET_X = 30
+OFFSET_Y = 0
+
 
 class Sparkle(QtWidgets.QLabel):
     def __init__(self, x, y, parent=None):
@@ -58,7 +62,8 @@ class SparkleLayer(QtWidgets.QWidget):
     def add_sparkle(self, x, y):
         sparkle = Sparkle(x, y, parent=self)
         sparkle.show()
-
+        # Keep sparkles behind the overlay
+        sparkle.lower()
 class BunnyOverlay(QtWidgets.QWidget):
     def __init__(self, image_path, sparkle_layer):
         super().__init__()
@@ -82,8 +87,8 @@ class BunnyOverlay(QtWidgets.QWidget):
         self.label.setPixmap(self.base_pixmap)
         self.pixmap_cache = {}
         # overlay offset from cursor
-        self.offset_x = 1000
-        self.offset_y = 700
+        self.offset_x = OFFSET_X
+        self.offset_y = OFFSET_Y
 
         # Mouse tracking state
         start_pos = QtGui.QCursor.pos()
@@ -95,19 +100,29 @@ class BunnyOverlay(QtWidgets.QWidget):
         self.trail_timer.timeout.connect(self.spawn_trail)
         self.trail_timer.start(80)
 
+        # Track previous mouse position for sway effect
+        self.prev_mouse_x = self.current_x
+        self.sway_offset = 0
+
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_position)
         self.timer.start(10)
 
     def spawn_trail(self):
-        cursor = QtGui.QCursor.pos()
-        x = cursor.x() + random.randint(-50, 50)
-        y = cursor.y() + random.randint(-50, 50)
+        """Spawn sparkle particles at the overlay's position."""
+        x = int(self.current_x - 20 + random.randint(-10, 10))
+        y = int(self.current_y - 20 + random.randint(-10, 10))
         self.sparkle_layer.add_sparkle(x, y)
 
     def update_position(self):
         mouse_pos = QtGui.QCursor.pos()
-        target_x = mouse_pos.x() + self.offset_x
+        # Horizontal sway based on mouse delta
+        dx_mouse = mouse_pos.x() - self.prev_mouse_x
+        self.prev_mouse_x = mouse_pos.x()
+        self.sway_offset += (dx_mouse - self.sway_offset) * 0.2
+        self.sway_offset = max(min(self.sway_offset, 20), -20)
+
+        target_x = mouse_pos.x() + self.offset_x + self.sway_offset
         target_y = mouse_pos.y() + self.offset_y
 
         # Smooth toward cursor
@@ -138,7 +153,7 @@ class BunnyOverlay(QtWidgets.QWidget):
             )
             self.pixmap_cache[angle_key] = rotated_pixmap
 
-        canvas = QtGui.QPixmap(80, 80)
+        canvas = QtGui.QPixmap(90, 90)
         canvas.fill(QtCore.Qt.transparent)
         painter = QtGui.QPainter(canvas)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
