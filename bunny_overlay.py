@@ -1,0 +1,146 @@
+import sys
+import pyautogui
+import time
+import math
+import random
+from PySide6 import QtCore, QtGui, QtWidgets
+
+
+class Sparkle(QtWidgets.QLabel):
+    def __init__(self, x, y, parent=None):
+        super().__init__(parent)
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+        self.setWindowFlags(QtCore.Qt.FramelessWindowHint | QtCore.Qt.Tool)
+
+        pixmap = QtGui.QPixmap("stars.png").scaled(40, 40, QtCore.Qt.KeepAspectRatio,
+                                                     QtCore.Qt.SmoothTransformation)
+        self.setPixmap(pixmap)
+        self.move(x, y)
+        self.opacity = 1.0
+
+        self.effect = QtWidgets.QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.effect)
+        self.effect.setOpacity(self.opacity)
+
+        self.fade_timer = QtCore.QTimer(self)
+        self.fade_timer.timeout.connect(self.fade)
+        self.fade_timer.start(30)
+
+        self.show()
+
+    def fade(self):
+        self.opacity -= 0.05
+        if self.opacity <= 0:
+            self.fade_timer.stop()
+            self.deleteLater()
+        else:
+            self.effect.setOpacity(self.opacity)
+
+
+class SparkleLayer(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(
+            QtCore.Qt.FramelessWindowHint |
+            QtCore.Qt.WindowStaysOnTopHint |
+            QtCore.Qt.Tool
+        )
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+
+        screen_geometry = QtWidgets.QApplication.primaryScreen().geometry()
+        self.setGeometry(screen_geometry)
+        self.show()
+
+    def add_sparkle(self, x, y):
+        sparkle = Sparkle(x, y, parent=self)
+        sparkle.show()
+class BunnyOverlay(QtWidgets.QWidget):
+    def __init__(self, image_path, sparkle_layer):
+        super().__init__()
+        self.sparkle_layer = sparkle_layer
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
+        self.setWindowFlags(QtCore.Qt.FramelessWindowHint |
+                            QtCore.Qt.WindowStaysOnTopHint |
+                            QtCore.Qt.Tool |
+                            QtCore.Qt.X11BypassWindowManagerHint)
+
+        self.label = QtWidgets.QLabel(self)
+        self.label.setAlignment(QtCore.Qt.AlignCenter)
+        self.label.setFixedSize(90, 90)
+        self.resize(90, 90)  # Never resize after this
+
+        # Load base image
+        self.base_pixmap = QtGui.QPixmap(image_path).scaled(
+            90, 90, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
+        )
+        self.label.setPixmap(self.base_pixmap)
+
+        # Mouse tracking state
+        start_pos = pyautogui.position()
+        self.current_x = start_pos.x
+        self.current_y = start_pos.y
+        self.current_angle = 0
+
+        self.trail_timer = QtCore.QTimer()
+        self.trail_timer.timeout.connect(self.spawn_trail)
+        self.trail_timer.start(80)
+
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.update_position)
+        self.timer.start(10)
+
+    def spawn_trail(self):
+        x = self.x() + random.randint(20, 60)
+        y = self.y() + random.randint(20, 60)
+        self.sparkle_layer.add_sparkle(x, y)
+
+    def update_position(self):
+        mouse_pos = pyautogui.position()
+
+        # Smooth toward cursor
+        smoothing = 0.15
+        self.current_x += (mouse_pos.x - self.current_x) * smoothing
+        self.current_y += (mouse_pos.y - self.current_y) * smoothing
+
+        # Rotation based on smoothed horizontal movement
+        dx = mouse_pos.x - self.current_x
+        target_angle = max(min(dx * 2, 15), -15)
+        self.current_angle += (target_angle - self.current_angle) * 0.2
+
+        # Rotate and draw bunny into fixed-size canvas
+        rotated_pixmap = self.base_pixmap.transformed(
+            QtGui.QTransform().rotate(self.current_angle),
+            QtCore.Qt.SmoothTransformation
+        )
+
+        canvas = QtGui.QPixmap(90, 90)
+        canvas.fill(QtCore.Qt.transparent)
+        painter = QtGui.QPainter(canvas)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.drawPixmap(
+            (canvas.width() - rotated_pixmap.width()) // 2,
+            (canvas.height() - rotated_pixmap.height()) // 2,
+            rotated_pixmap
+        )
+        painter.end()
+
+        self.label.setPixmap(canvas)
+
+        # Gentle vertical bob
+        wobble = math.sin(time.time() * 8) * 5
+        self.move(
+            int(self.current_x - self.width() // 2),
+            int(self.current_y - self.height() // 2 + wobble)
+        )
+
+if __name__ == "__main__":
+    app = QtWidgets.QApplication(sys.argv)
+
+    sparkle_layer = SparkleLayer()
+    overlay = BunnyOverlay("hachiware.png", sparkle_layer)
+    overlay.show()
+
+    sys.exit(app.exec())
